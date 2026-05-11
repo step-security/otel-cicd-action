@@ -21,11 +21,6 @@ We provide sample code for popular platforms. If you feel one is missing, please
 | Code Sample                 | File                                             |
 | --------------------------- | ------------------------------------------------ |
 | Inside an existing workflow | [build.yml](.github/workflows/build.yml)         |
-| From a private repository   | [private.yml](.github/workflows/private.yml)     |
-| Axiom                       | [axiom.yml](.github/workflows/axiom.yml)         |
-| New Relic                   | [newrelic.yml](.github/workflows/newrelic.yml)   |
-| Honeycomb                   | [honeycomb.yml](.github/workflows/honeycomb.yml) |
-| Dash0                       | [dash0.yml](.github/workflows/dash0.yml)         |
 
 ### On workflow_run event
 
