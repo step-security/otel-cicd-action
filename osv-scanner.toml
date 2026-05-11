@@ -1,0 +1,7 @@
+[[IgnoredVulns]]
+id = "GHSA-3v7f-55p6-f55p"
+reason = "Affects picomatch (dev dependency only, not shipped in dist)"
+
+[[IgnoredVulns]]
+id = "GHSA-c2c7-rcm5-vvqj"
+reason = "Affects picomatch (dev dependency only, not shipped in dist)"
