@@ -1,0 +1,330 @@
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: {
+    traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+    spanId: '991f2b235b36cb2c',
+    traceFlags: 1,
+    traceState: undefined
+  },
+  traceState: undefined,
+  name: 'Queued',
+  id: 'b6cb5d1a3093cd7c',
+  kind: 0,
+  timestamp: 1769641490000000,
+  duration: 2000000,
+  attributes: {},
+  status: { code: 0 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: {
+    traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+    spanId: '6ec088f795976e9f',
+    traceFlags: 1,
+    traceState: undefined
+  },
+  traceState: undefined,
+  name: 'Set up job',
+  id: '664492c803762481',
+  kind: 0,
+  timestamp: 1769641521000000,
+  duration: 2000000,
+  attributes: {
+    'github.job.step.status': 'completed',
+    'github.job.step.conclusion': 'success',
+    'github.job.step.name': 'Set up job',
+    'github.job.step.number': 1,
+    'github.job.step.started_at': '2026-01-28T23:05:21Z',
+    'github.job.step.completed_at': '2026-01-28T23:05:23Z',
+    error: false
+  },
+  status: { code: 1 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: {
+    traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+    spanId: '6ec088f795976e9f',
+    traceFlags: 1,
+    traceState: undefined
+  },
+  traceState: undefined,
+  name: 'Run amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50',
+  id: '53f65cc5dd869993',
+  kind: 0,
+  timestamp: 1769641523000000,
+  duration: 5000000,
+  attributes: {
+    'github.job.step.status': 'completed',
+    'github.job.step.conclusion': 'failure',
+    'github.job.step.name': 'Run amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50',
+    'github.job.step.number': 2,
+    'github.job.step.started_at': '2026-01-28T23:05:23Z',
+    'github.job.step.completed_at': '2026-01-28T23:05:28Z',
+    error: true
+  },
+  status: { code: 2 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: {
+    traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+    spanId: '6ec088f795976e9f',
+    traceFlags: 1,
+    traceState: undefined
+  },
+  traceState: undefined,
+  name: 'Complete job',
+  id: '3be338eeb09a8294',
+  kind: 0,
+  timestamp: 1769641528000000,
+  duration: 0,
+  attributes: {
+    'github.job.step.status': 'completed',
+    'github.job.step.conclusion': 'success',
+    'github.job.step.name': 'Complete job',
+    'github.job.step.number': 3,
+    'github.job.step.started_at': '2026-01-28T23:05:28Z',
+    'github.job.step.completed_at': '2026-01-28T23:05:28Z',
+    error: false
+  },
+  status: { code: 1 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: {
+    traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+    spanId: '991f2b235b36cb2c',
+    traceFlags: 1,
+    traceState: undefined
+  },
+  traceState: undefined,
+  name: 'Validate PR title',
+  id: '6ec088f795976e9f',
+  kind: 0,
+  timestamp: 1769641492000000,
+  duration: 37000000,
+  attributes: {
+    'cicd.pipeline.task.name': 'Validate PR title',
+    'cicd.pipeline.task.run.id': 61806350920,
+    'cicd.pipeline.task.run.result': 'failure',
+    'cicd.pipeline.task.run.url.full': 'https://github.com/biomejs/biome/actions/runs/21458831126/job/61806350920',
+    'cicd.worker.id': 160520,
+    'cicd.worker.name': 'depot-6ltm0thcf4',
+    'github.job.id': 61806350920,
+    'github.job.name': 'Validate PR title',
+    'github.job.run_id': 21458831126,
+    'github.job.run_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126',
+    'github.job.run_attempt': 1,
+    'github.job.node_id': 'CR_kwDOKAiibM8AAAAOY_ISSA',
+    'github.job.head_sha': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+    'github.job.url': 'https://api.github.com/repos/biomejs/biome/actions/jobs/61806350920',
+    'github.job.html_url': 'https://github.com/biomejs/biome/actions/runs/21458831126/job/61806350920',
+    'github.job.status': 'completed',
+    'github.job.runner_id': 160520,
+    'github.job.runner_group_id': 1,
+    'github.job.runner_group_name': 'default',
+    'github.job.runner_name': 'depot-6ltm0thcf4',
+    'github.job.conclusion': 'failure',
+    'github.job.labels': 'depot-ubuntu-24.04-arm-small',
+    'github.job.created_at': '2026-01-28T23:04:51Z',
+    'github.job.started_at': '2026-01-28T23:04:52Z',
+    'github.job.completed_at': '2026-01-28T23:05:29Z',
+    'github.conclusion': 'failure',
+    'github.job.check_run_url': 'https://api.github.com/repos/biomejs/biome/check-runs/61806350920',
+    'github.job.workflow_name': 'Lint Pull Request Titles',
+    'github.job.head_branch': 'fixes/use-exhaustive-dependencies-regressions',
+    error: true,
+    'github.job.annotations.0.level': 'failure',
+    'github.job.annotations.0.message': 'No release type found in pull request title "fix(linter) `useExhaustiveDependencies` regressions, fixes #8802, fixes #8883, fixes #8885". Add a prefix to indicate what kind of release this pull request corresponds to. For reference, see https://www.conventionalcommits.org/\n' +
+      '\n' +
+      'Available types:\n' +
+      ' - build\n' +
+      ' - chore\n' +
+      ' - ci\n' +
+      ' - docs\n' +
+      ' - feat\n' +
+      ' - fix\n' +
+      ' - perf\n' +
+      ' - refactor\n' +
+      ' - release\n' +
+      ' - revert\n' +
+      ' - test'
+  },
+  status: { code: 2 },
+  events: [],
+  links: []
+}
+{
+  resource: {
+    attributes: {
+      'service.name': 'otel-cicd-action',
+      'telemetry.sdk.language': 'nodejs',
+      'telemetry.sdk.name': 'opentelemetry',
+      'telemetry.sdk.version': '2.6.0',
+      'service.instance.id': 'biomejs/biome/94297729/21458831126/1',
+      'service.namespace': 'biomejs/biome',
+      'service.version': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+      'extra.attribute': '1',
+      key2: 'value2'
+    }
+  },
+  instrumentationScope: {
+    name: 'otel-cicd-action',
+    version: undefined,
+    schemaUrl: undefined
+  },
+  traceId: '329e58aa53cec7a2beadd2fd0a85c388',
+  parentSpanContext: undefined,
+  traceState: undefined,
+  name: 'Lint Pull Request Titles',
+  id: '991f2b235b36cb2c',
+  kind: 0,
+  timestamp: 1769641490000000,
+  duration: 40000000,
+  attributes: {
+    'cicd.pipeline.action.name': 'RUN',
+    'cicd.pipeline.name': 'Lint Pull Request Titles',
+    'cicd.pipeline.result': 'failure',
+    'cicd.pipeline.run.id': 21458831126,
+    'cicd.pipeline.run.url.full': 'https://github.com/biomejs/biome/actions/runs/21458831126',
+    'cicd.pipeline.run.state': 'finalizing',
+    'github.workflow_id': 94297729,
+    'github.run_id': 21458831126,
+    'github.run_number': 16172,
+    'github.run_attempt': 1,
+    'github.url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126',
+    'github.html_url': 'https://github.com/biomejs/biome/actions/runs/21458831126',
+    'github.workflow_url': 'https://api.github.com/repos/biomejs/biome/actions/workflows/94297729',
+    'github.event': 'pull_request_target',
+    'github.status': 'completed',
+    'github.workflow': 'Lint Pull Request Titles',
+    'github.node_id': 'WFR_kwLOKAiibM8AAAAE_wvHFg',
+    'github.check_suite_id': 55735173416,
+    'github.check_suite_node_id': 'CS_kwDOKAiibM8AAAAM-hNBKA',
+    'github.conclusion': 'failure',
+    'github.created_at': '2026-01-28T23:04:50Z',
+    'github.updated_at': '2026-01-28T23:05:30Z',
+    'github.run_started_at': '2026-01-28T23:04:50Z',
+    'github.jobs_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126/jobs',
+    'github.logs_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126/logs',
+    'github.check_suite_url': 'https://api.github.com/repos/biomejs/biome/check-suites/55735173416',
+    'github.artifacts_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126/artifacts',
+    'github.cancel_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126/cancel',
+    'github.rerun_url': 'https://api.github.com/repos/biomejs/biome/actions/runs/21458831126/rerun',
+    'github.head_commit.id': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+    'github.head_commit.tree_id': '1126b303100f027305a82931878a88bb399234fb',
+    'github.head_commit.author.name': 'Marat Dulin',
+    'github.head_commit.author.email': 'github-commit@maratd.com',
+    'github.head_commit.committer.name': 'Marat Dulin',
+    'github.head_commit.committer.email': 'github-commit@maratd.com',
+    'github.head_commit.message': 'chore: clippy fix',
+    'github.head_commit.timestamp': '2026-01-28T23:04:41Z',
+    'github.head_branch': 'fixes/use-exhaustive-dependencies-regressions',
+    'github.head_sha': 'e2666f5864e5f11de8a071856f0804e6bab0fd8f',
+    'github.path': '.github/workflows/pull_request_title_lint.yaml',
+    'github.display_title': 'fix(linter): `useExhaustiveDependencies` regressions, fixes #8802, fixes #8883, fixes #8885',
+    error: true
+  },
+  status: { code: 2 },
+  events: [],
+  links: []
+}
