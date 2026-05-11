@@ -1,0 +1,9 @@
+# Coverage directory used by istanbul
+coverage
+
+# dotenv environment variables file
+.env
+.env.test
+
+.DS_Store
+node_modules

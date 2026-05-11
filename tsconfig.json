@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": "./",
+    "skipLibCheck": true,
+    // Strict Checks
+    "strict": true,
+    "noPropertyAccessFromIndexSignature": true,
+    //"noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noStrictGenericChecks": false,
+    // Linter Checks
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "noEmit": true,
+    "esModuleInterop": true
+  },
+  "exclude": [
+    "./dist",
+    "./node_modules",
+    "./__tests__",
+    "./coverage",
+    "jest.config.ts"
+  ]
+}
