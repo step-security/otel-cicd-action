@@ -2607,7 +2607,7 @@ terms above.
 ---
 
 Name: protobufjs
-Version: 7.5.4
+Version: 7.5.6
 License: BSD-3-Clause
 Private: false
 Description: Protocol Buffers for JavaScript (& TypeScript).
@@ -2816,7 +2816,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---
 
 Name: @protobufjs/inquire
-Version: 1.1.0
+Version: 1.1.1
 License: BSD-3-Clause
 Private: false
 Description: Requires a module only if available and hides the require call from bundlers.
@@ -2855,7 +2855,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---
 
 Name: @protobufjs/utf8
-Version: 1.1.0
+Version: 1.1.1
 License: BSD-3-Clause
 Private: false
 Description: A minimal UTF8 implementation for number arrays.
@@ -2933,7 +2933,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ---
 
 Name: @protobufjs/codegen
-Version: 2.0.4
+Version: 2.0.5
 License: BSD-3-Clause
 Private: false
 Description: A minimalistic code generation utility.
