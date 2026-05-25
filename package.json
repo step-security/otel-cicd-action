@@ -20,7 +20,7 @@
   "author": "step-security",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^3.0.0",
+    "@actions/core": "^3.0.1",
     "@actions/github": "^9.0.0",
     "@grpc/grpc-js": "^1.14.3",
     "@octokit/openapi-types": "^27.0.0",
