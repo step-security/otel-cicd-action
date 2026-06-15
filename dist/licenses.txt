@@ -2073,7 +2073,7 @@ License Text:
 ---
 
 Name: @grpc/grpc-js
-Version: 1.14.3
+Version: 1.14.4
 License: Apache-2.0
 Private: false
 Description: gRPC Library for Node - pure JS implementation

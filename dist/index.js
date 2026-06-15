@@ -57850,7 +57850,7 @@ function requireConstants () {
 	return constants;
 }
 
-var version$1 = "1.14.3";
+var version$1 = "1.14.4";
 var require$$12 = {
 	version: version$1};
 
@@ -79617,6 +79617,12 @@ function requireCompressionFilter () {
 	            let totalLength = 0;
 	            const messageParts = [];
 	            const decompresser = zlib.createInflate();
+	            decompresser.on('error', (error) => {
+	                reject({
+	                    code: constants_1.Status.INTERNAL,
+	                    details: 'Failed to decompress deflate-encoded message'
+	                });
+	            });
 	            decompresser.on('data', (chunk) => {
 	                messageParts.push(chunk);
 	                totalLength += chunk.byteLength;
@@ -79658,6 +79664,12 @@ function requireCompressionFilter () {
 	            let totalLength = 0;
 	            const messageParts = [];
 	            const decompresser = zlib.createGunzip();
+	            decompresser.on('error', (error) => {
+	                reject({
+	                    code: constants_1.Status.INTERNAL,
+	                    details: 'Failed to decompress gzip-encoded message'
+	                });
+	            });
 	            decompresser.on('data', (chunk) => {
 	                messageParts.push(chunk);
 	                totalLength += chunk.byteLength;
@@ -86402,13 +86414,6 @@ function requireServerInterceptors () {
 	        this.receivedHalfClose = false;
 	        this.streamEnded = false;
 	        this.metricsRecorder = new orca_1.PerRequestMetricRecorder();
-	        this.stream.once('error', (err) => {
-	            /* We need an error handler to avoid uncaught error event exceptions, but
-	             * there is nothing we can reasonably do here. Any error event should
-	             * have a corresponding close event, which handles emitting the cancelled
-	             * event. And the stream is now in a bad state, so we can't reasonably
-	             * expect to be able to send an error over it. */
-	        });
 	        this.stream.once('close', () => {
 	            var _a;
 	            trace('Request to method ' +
@@ -86566,6 +86571,12 @@ function requireServerInterceptors () {
 	            return new Promise((resolve, reject) => {
 	                let totalLength = 0;
 	                const messageParts = [];
+	                decompresser.on('error', (error) => {
+	                    reject({
+	                        code: constants_1.Status.INTERNAL,
+	                        details: 'Failed to decompress message'
+	                    });
+	                });
 	                decompresser.on('data', (chunk) => {
 	                    messageParts.push(chunk);
 	                    totalLength += chunk.byteLength;
@@ -87801,6 +87812,13 @@ function requireServer () {
 	                channelzSessionInfo === null || channelzSessionInfo === void 0 ? void 0 : channelzSessionInfo.streamTracker.addCallFailed();
 	            }
 	            _channelzHandler(extraInterceptors, stream, headers) {
+	                stream.once('error', (err) => {
+	                    /* We need an error handler to avoid uncaught error event exceptions, but
+	                     * there is nothing we can reasonably do here. Any error event should
+	                     * have a corresponding close event, which handles emitting the cancelled
+	                     * event. And the stream is now in a bad state, so we can't reasonably
+	                     * expect to be able to send an error over it. */
+	                });
 	                // for handling idle timeout
 	                this.onStreamOpened(stream);
 	                const channelzSessionInfo = this.sessions.get(stream.session);
@@ -87860,6 +87878,13 @@ function requireServer () {
 	                }
 	            }
 	            _streamHandler(extraInterceptors, stream, headers) {
+	                stream.once('error', (err) => {
+	                    /* We need an error handler to avoid uncaught error event exceptions, but
+	                     * there is nothing we can reasonably do here. Any error event should
+	                     * have a corresponding close event, which handles emitting the cancelled
+	                     * event. And the stream is now in a bad state, so we can't reasonably
+	                     * expect to be able to send an error over it. */
+	                });
 	                // for handling idle timeout
 	                this.onStreamOpened(stream);
 	                if (this._verifyContentType(stream, headers) !== true) {
