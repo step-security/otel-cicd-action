@@ -2751,15 +2751,24 @@ function requireDispatcherBase () {
 	const kOnDestroyed = Symbol('onDestroyed');
 	const kOnClosed = Symbol('onClosed');
 	const kInterceptedDispatch = Symbol('Intercepted Dispatch');
+	const kWebSocketOptions = Symbol('webSocketOptions');
 
 	class DispatcherBase extends Dispatcher {
-	  constructor () {
+	  constructor (opts) {
 	    super();
 
 	    this[kDestroyed] = false;
 	    this[kOnDestroyed] = null;
 	    this[kClosed] = false;
 	    this[kOnClosed] = [];
+	    this[kWebSocketOptions] = opts?.webSocket ?? {};
+	  }
+
+	  get webSocketOptions () {
+	    return {
+	      maxFragments: this[kWebSocketOptions].maxFragments ?? 131072,
+	      maxPayloadSize: this[kWebSocketOptions].maxPayloadSize ?? 128 * 1024 * 1024
+	    }
 	  }
 
 	  get destroyed () {
@@ -8709,6 +8718,9 @@ function requireClientH1 () {
 	const FastBuffer = Buffer[Symbol.species];
 	const addListener = util.addListener;
 	const removeAllListeners = util.removeAllListeners;
+	const kIdleSocketValidation = Symbol('kIdleSocketValidation');
+	const kIdleSocketValidationTimeout = Symbol('kIdleSocketValidationTimeout');
+	const kSocketUsed = Symbol('kSocketUsed');
 
 	let extractBody;
 
@@ -8931,27 +8943,69 @@ function requireClientH1 () {
 
 	      const offset = llhttp.llhttp_get_error_pos(this.ptr) - currentBufferPtr;
 
-	      if (ret === constants.ERROR.PAUSED_UPGRADE) {
-	        this.onUpgrade(data.slice(offset));
-	      } else if (ret === constants.ERROR.PAUSED) {
-	        this.paused = true;
-	        socket.unshift(data.slice(offset));
-	      } else if (ret !== constants.ERROR.OK) {
-	        const ptr = llhttp.llhttp_get_error_reason(this.ptr);
-	        let message = '';
-	        /* istanbul ignore else: difficult to make a test case for */
-	        if (ptr) {
-	          const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0);
-	          message =
-	            'Response does not match the HTTP/1.1 protocol (' +
-	            Buffer.from(llhttp.memory.buffer, ptr, len).toString() +
-	            ')';
+	      if (ret !== constants.ERROR.OK) {
+	        const body = data.subarray(offset);
+
+	        if (ret === constants.ERROR.PAUSED_UPGRADE) {
+	          this.onUpgrade(body);
+	        } else if (ret === constants.ERROR.PAUSED) {
+	          this.paused = true;
+	          socket.unshift(body);
+	        } else {
+	          throw this.createError(ret, body)
 	        }
-	        throw new HTTPParserError(message, constants.ERROR[ret], data.slice(offset))
 	      }
 	    } catch (err) {
 	      util.destroy(socket, err);
 	    }
+	  }
+
+	  finish () {
+	    assert(currentParser === null);
+	    assert(this.ptr != null);
+	    assert(!this.paused);
+
+	    const { llhttp } = this;
+
+	    let ret;
+
+	    try {
+	      currentParser = this;
+	      ret = llhttp.llhttp_finish(this.ptr);
+	    } finally {
+	      currentParser = null;
+	    }
+
+	    if (ret === constants.ERROR.OK) {
+	      return null
+	    }
+
+	    if (ret === constants.ERROR.PAUSED || ret === constants.ERROR.PAUSED_UPGRADE) {
+	      this.paused = true;
+	      return null
+	    }
+
+	    return this.createError(ret, EMPTY_BUF)
+	  }
+
+	  createError (ret, data) {
+	    const { llhttp, contentLength, bytesRead } = this;
+
+	    if (contentLength && bytesRead !== parseInt(contentLength, 10)) {
+	      return new ResponseContentLengthMismatchError()
+	    }
+
+	    const ptr = llhttp.llhttp_get_error_reason(this.ptr);
+	    let message = '';
+	    if (ptr) {
+	      const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0);
+	      message =
+	        'Response does not match the HTTP/1.1 protocol (' +
+	        Buffer.from(llhttp.memory.buffer, ptr, len).toString() +
+	        ')';
+	    }
+
+	    return new HTTPParserError(message, constants.ERROR[ret], data)
 	  }
 
 	  destroy () {
@@ -8978,6 +9032,11 @@ function requireClientH1 () {
 
 	    /* istanbul ignore next: difficult to make a test case for */
 	    if (socket.destroyed) {
+	      return -1
+	    }
+
+	    if (client[kRunning] === 0) {
+	      util.destroy(socket, new SocketError('bad response', util.getSocketInfo(socket)));
 	      return -1
 	    }
 
@@ -9081,6 +9140,11 @@ function requireClientH1 () {
 
 	    /* istanbul ignore next: difficult to make a test case for */
 	    if (socket.destroyed) {
+	      return -1
+	    }
+
+	    if (client[kRunning] === 0) {
+	      util.destroy(socket, new SocketError('bad response', util.getSocketInfo(socket)));
 	      return -1
 	    }
 
@@ -9257,6 +9321,7 @@ function requireClientH1 () {
 	    request.onComplete(headers);
 
 	    client[kQueue][client[kRunningIdx]++] = null;
+	    socket[kSocketUsed] = true;
 
 	    if (socket[kWriting]) {
 	      assert(client[kRunning] === 0);
@@ -9315,6 +9380,9 @@ function requireClientH1 () {
 	  socket[kWriting] = false;
 	  socket[kReset] = false;
 	  socket[kBlocking] = false;
+	  socket[kIdleSocketValidation] = 0;
+	  socket[kIdleSocketValidationTimeout] = null;
+	  socket[kSocketUsed] = false;
 	  socket[kParser] = new Parser(client, socket, llhttpInstance);
 
 	  addListener(socket, 'error', function (err) {
@@ -9325,8 +9393,11 @@ function requireClientH1 () {
 	    // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
 	    // to the user.
 	    if (err.code === 'ECONNRESET' && parser.statusCode && !parser.shouldKeepAlive) {
-	      // We treat all incoming data so for as a valid response.
-	      parser.onMessageComplete();
+	      const parserErr = parser.finish();
+	      if (parserErr) {
+	        this[kError] = parserErr;
+	        this[kClient][kOnError](parserErr);
+	      }
 	      return
 	    }
 
@@ -9345,8 +9416,10 @@ function requireClientH1 () {
 	    const parser = this[kParser];
 
 	    if (parser.statusCode && !parser.shouldKeepAlive) {
-	      // We treat all incoming data so far as a valid response.
-	      parser.onMessageComplete();
+	      const parserErr = parser.finish();
+	      if (parserErr) {
+	        util.destroy(this, parserErr);
+	      }
 	      return
 	    }
 
@@ -9356,10 +9429,11 @@ function requireClientH1 () {
 	    const client = this[kClient];
 	    const parser = this[kParser];
 
+	    clearIdleSocketValidation(this);
+
 	    if (parser) {
 	      if (!this[kError] && parser.statusCode && !parser.shouldKeepAlive) {
-	        // We treat all incoming data so far as a valid response.
-	        parser.onMessageComplete();
+	        this[kError] = parser.finish() || this[kError];
 	      }
 
 	      this[kParser].destroy();
@@ -9422,7 +9496,7 @@ function requireClientH1 () {
 	      return socket.destroyed
 	    },
 	    busy (request) {
-	      if (socket[kWriting] || socket[kReset] || socket[kBlocking]) {
+	      if (socket[kWriting] || socket[kReset] || socket[kBlocking] || socket[kIdleSocketValidation] === 1) {
 	        return true
 	      }
 
@@ -9460,6 +9534,31 @@ function requireClientH1 () {
 	  }
 	}
 
+	function clearIdleSocketValidation (socket) {
+	  if (socket[kIdleSocketValidationTimeout]) {
+	    clearTimeout(socket[kIdleSocketValidationTimeout]);
+	    socket[kIdleSocketValidationTimeout] = null;
+	  }
+
+	  socket[kIdleSocketValidation] = 0;
+	}
+
+	function scheduleIdleSocketValidation (client, socket) {
+	  socket[kIdleSocketValidation] = 1;
+	  socket[kIdleSocketValidationTimeout] = setTimeout(() => {
+	    socket[kIdleSocketValidationTimeout] = null;
+	    socket[kIdleSocketValidation] = 2;
+
+	    if (client[kSocket] === socket && !socket.destroyed) {
+	      client[kResume]();
+	    }
+	  }, 0);
+	  socket[kIdleSocketValidationTimeout].unref?.();
+	}
+
+	/**
+	 * @param {import('./client.js')} client
+	 */
 	function resumeH1 (client) {
 	  const socket = client[kSocket];
 
@@ -9472,6 +9571,32 @@ function requireClientH1 () {
 	    } else if (socket[kNoRef] && socket.ref) {
 	      socket.ref();
 	      socket[kNoRef] = false;
+	    }
+
+	    if (client[kRunning] === 0 && client[kPending] > 0 && socket[kSocketUsed]) {
+	      if (socket[kIdleSocketValidation] === 0) {
+	        scheduleIdleSocketValidation(client, socket);
+	        socket[kParser].readMore();
+	        if (socket.destroyed) {
+	          return
+	        }
+	        return
+	      }
+
+	      if (socket[kIdleSocketValidation] === 1) {
+	        socket[kParser].readMore();
+	        if (socket.destroyed) {
+	          return
+	        }
+	        return
+	      }
+	    }
+
+	    if (client[kRunning] === 0) {
+	      socket[kParser].readMore();
+	      if (socket.destroyed) {
+	        return
+	      }
 	    }
 
 	    if (client[kSize] === 0) {
@@ -9567,6 +9692,7 @@ function requireClientH1 () {
 	  }
 
 	  const socket = client[kSocket];
+	  clearIdleSocketValidation(socket);
 
 	  const abort = (err) => {
 	    if (request.aborted || request.completed) {
@@ -11137,9 +11263,10 @@ function requireClient$1 () {
 	    autoSelectFamilyAttemptTimeout,
 	    // h2
 	    maxConcurrentStreams,
-	    allowH2
+	    allowH2,
+	    webSocket
 	  } = {}) {
-	    super();
+	    super({ webSocket });
 
 	    if (keepAlive !== undefined) {
 	      throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
@@ -11846,8 +11973,8 @@ function requirePoolBase () {
 	const kStats = Symbol('stats');
 
 	class PoolBase extends DispatcherBase {
-	  constructor () {
-	    super();
+	  constructor (opts) {
+	    super(opts);
 
 	    this[kQueue] = new FixedQueue();
 	    this[kClients] = [];
@@ -12066,8 +12193,6 @@ function requirePool$1 () {
 	    allowH2,
 	    ...options
 	  } = {}) {
-	    super();
-
 	    if (connections != null && (!Number.isFinite(connections) || connections < 0)) {
 	      throw new InvalidArgumentError('invalid connections')
 	    }
@@ -12091,6 +12216,8 @@ function requirePool$1 () {
 	        ...connect
 	      });
 	    }
+
+	    super(options);
 
 	    this[kInterceptors] = options.interceptors?.Pool && Array.isArray(options.interceptors.Pool)
 	      ? options.interceptors.Pool
@@ -12385,8 +12512,6 @@ function requireAgent () {
 
 	class Agent extends DispatcherBase {
 	  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
-	    super();
-
 	    if (typeof factory !== 'function') {
 	      throw new InvalidArgumentError('factory must be a function.')
 	    }
@@ -12398,6 +12523,8 @@ function requireAgent () {
 	    if (!Number.isInteger(maxRedirections) || maxRedirections < 0) {
 	      throw new InvalidArgumentError('maxRedirections must be a positive number')
 	    }
+
+	    super(options);
 
 	    if (connect && typeof connect !== 'function') {
 	      connect = { ...connect };
@@ -24048,32 +24175,25 @@ function requireParse$1 () {
 	    // If the attribute-name case-insensitively matches the string
 	    // "SameSite", the user agent MUST process the cookie-av as follows:
 
-	    // 1. Let enforcement be "Default".
-	    let enforcement = 'Default';
-
 	    const attributeValueLowercase = attributeValue.toLowerCase();
-	    // 2. If cookie-av's attribute-value is a case-insensitive match for
-	    //    "None", set enforcement to "None".
-	    if (attributeValueLowercase.includes('none')) {
-	      enforcement = 'None';
-	    }
 
-	    // 3. If cookie-av's attribute-value is a case-insensitive match for
-	    //    "Strict", set enforcement to "Strict".
-	    if (attributeValueLowercase.includes('strict')) {
-	      enforcement = 'Strict';
+	    // 1. If cookie-av's attribute-value is a case-insensitive match for
+	    //    "None", append an attribute to the cookie-attribute-list with an
+	    //    attribute-name of "SameSite" and an attribute-value of "None".
+	    if (attributeValueLowercase === 'none') {
+	      cookieAttributeList.sameSite = 'None';
+	    } else if (attributeValueLowercase === 'strict') {
+	      // 2. If cookie-av's attribute-value is a case-insensitive match for
+	      //    "Strict", append an attribute to the cookie-attribute-list with
+	      //    an attribute-name of "SameSite" and an attribute-value of
+	      //    "Strict".
+	      cookieAttributeList.sameSite = 'Strict';
+	    } else if (attributeValueLowercase === 'lax') {
+	      // 3. If cookie-av's attribute-value is a case-insensitive match for
+	      //    "Lax", append an attribute to the cookie-attribute-list with an
+	      //    attribute-name of "SameSite" and an attribute-value of "Lax".
+	      cookieAttributeList.sameSite = 'Lax';
 	    }
-
-	    // 4. If cookie-av's attribute-value is a case-insensitive match for
-	    //    "Lax", set enforcement to "Lax".
-	    if (attributeValueLowercase.includes('lax')) {
-	      enforcement = 'Lax';
-	    }
-
-	    // 5. Append an attribute to the cookie-attribute-list with an
-	    //    attribute-name of "SameSite" and an attribute-value of
-	    //    enforcement.
-	    cookieAttributeList.sameSite = enforcement;
 	  } else {
 	    cookieAttributeList.unparsed ??= [];
 
@@ -25539,40 +25659,35 @@ function requirePermessageDeflate () {
 	const kBuffer = Symbol('kBuffer');
 	const kLength = Symbol('kLength');
 
-	// Default maximum decompressed message size: 4 MB
-	const kDefaultMaxDecompressedSize = 4 * 1024 * 1024;
-
 	class PerMessageDeflate {
 	  /** @type {import('node:zlib').InflateRaw} */
 	  #inflate
 
 	  #options = {}
 
-	  /** @type {boolean} */
-	  #aborted = false
-
-	  /** @type {Function|null} */
-	  #currentCallback = null
+	  #maxPayloadSize = 0
 
 	  /**
 	   * @param {Map<string, string>} extensions
 	   */
-	  constructor (extensions) {
+	  constructor (extensions, options) {
 	    this.#options.serverNoContextTakeover = extensions.has('server_no_context_takeover');
 	    this.#options.serverMaxWindowBits = extensions.get('server_max_window_bits');
+
+	    this.#maxPayloadSize = options.maxPayloadSize;
 	  }
 
+	  /**
+	   * Decompress a compressed payload.
+	   * @param {Buffer} chunk Compressed data
+	   * @param {boolean} fin Final fragment flag
+	   * @param {Function} callback Callback function
+	   */
 	  decompress (chunk, fin, callback) {
 	    // An endpoint uses the following algorithm to decompress a message.
 	    // 1.  Append 4 octets of 0x00 0x00 0xff 0xff to the tail end of the
 	    //     payload of the message.
 	    // 2.  Decompress the resulting data using DEFLATE.
-
-	    if (this.#aborted) {
-	      callback(new MessageSizeExceededError());
-	      return
-	    }
-
 	    if (!this.#inflate) {
 	      let windowBits = Z_DEFAULT_WINDOWBITS;
 
@@ -25595,23 +25710,12 @@ function requirePermessageDeflate () {
 	      this.#inflate[kLength] = 0;
 
 	      this.#inflate.on('data', (data) => {
-	        if (this.#aborted) {
-	          return
-	        }
-
 	        this.#inflate[kLength] += data.length;
 
-	        if (this.#inflate[kLength] > kDefaultMaxDecompressedSize) {
-	          this.#aborted = true;
+	        if (this.#maxPayloadSize > 0 && this.#inflate[kLength] > this.#maxPayloadSize) {
+	          callback(new MessageSizeExceededError());
 	          this.#inflate.removeAllListeners();
-	          this.#inflate.destroy();
 	          this.#inflate = null;
-
-	          if (this.#currentCallback) {
-	            const cb = this.#currentCallback;
-	            this.#currentCallback = null;
-	            cb(new MessageSizeExceededError());
-	          }
 	          return
 	        }
 
@@ -25624,14 +25728,13 @@ function requirePermessageDeflate () {
 	      });
 	    }
 
-	    this.#currentCallback = callback;
 	    this.#inflate.write(chunk);
 	    if (fin) {
 	      this.#inflate.write(tail);
 	    }
 
 	    this.#inflate.flush(() => {
-	      if (this.#aborted || !this.#inflate) {
+	      if (!this.#inflate) {
 	        return
 	      }
 
@@ -25639,7 +25742,6 @@ function requirePermessageDeflate () {
 
 	      this.#inflate[kBuffer].length = 0;
 	      this.#inflate[kLength] = 0;
-	      this.#currentCallback = null;
 
 	      callback(null, full);
 	    });
@@ -25675,6 +25777,12 @@ function requireReceiver () {
 	const { WebsocketFrameSend } = requireFrame();
 	const { closeWebSocketConnection } = requireConnection();
 	const { PerMessageDeflate } = requirePermessageDeflate();
+	const { MessageSizeExceededError } = requireErrors();
+
+	function failWebsocketConnectionWithCode (ws, code, reason) {
+	  closeWebSocketConnection(ws, code, reason, Buffer.byteLength(reason));
+	  failWebsocketConnection(ws, reason);
+	}
 
 	// This code was influenced by ws released under the MIT license.
 	// Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
@@ -25683,6 +25791,7 @@ function requireReceiver () {
 
 	class ByteParser extends Writable {
 	  #buffers = []
+	  #fragmentsBytes = 0
 	  #byteOffset = 0
 	  #loop = false
 
@@ -25694,18 +25803,27 @@ function requireReceiver () {
 	  /** @type {Map<string, PerMessageDeflate>} */
 	  #extensions
 
+	  /** @type {number} */
+	  #maxFragments
+
+	  /** @type {number} */
+	  #maxPayloadSize
+
 	  /**
 	   * @param {import('./websocket').WebSocket} ws
 	   * @param {Map<string, string>|null} extensions
+	   * @param {{ maxFragments?: number, maxPayloadSize?: number }} [options]
 	   */
-	  constructor (ws, extensions) {
+	  constructor (ws, extensions, options = {}) {
 	    super();
 
 	    this.ws = ws;
 	    this.#extensions = extensions == null ? new Map() : extensions;
+	    this.#maxFragments = options.maxFragments ?? 0;
+	    this.#maxPayloadSize = options.maxPayloadSize ?? 0;
 
 	    if (this.#extensions.has('permessage-deflate')) {
-	      this.#extensions.set('permessage-deflate', new PerMessageDeflate(extensions));
+	      this.#extensions.set('permessage-deflate', new PerMessageDeflate(extensions, options));
 	    }
 	  }
 
@@ -25719,6 +25837,19 @@ function requireReceiver () {
 	    this.#loop = true;
 
 	    this.run(callback);
+	  }
+
+	  #validatePayloadLength () {
+	    if (
+	      this.#maxPayloadSize > 0 &&
+	      !isControlFrame(this.#info.opcode) &&
+	      this.#info.payloadLength + this.#fragmentsBytes > this.#maxPayloadSize
+	    ) {
+	      failWebsocketConnectionWithCode(this.ws, 1009, 'Payload size exceeds maximum allowed size');
+	      return false
+	    }
+
+	    return true
 	  }
 
 	  /**
@@ -25809,6 +25940,10 @@ function requireReceiver () {
 	        if (payloadLength <= 125) {
 	          this.#info.payloadLength = payloadLength;
 	          this.#state = parserStates.READ_DATA;
+
+	          if (!this.#validatePayloadLength()) {
+	            return
+	          }
 	        } else if (payloadLength === 126) {
 	          this.#state = parserStates.PAYLOADLENGTH_16;
 	        } else if (payloadLength === 127) {
@@ -25833,6 +25968,10 @@ function requireReceiver () {
 
 	        this.#info.payloadLength = buffer.readUInt16BE(0);
 	        this.#state = parserStates.READ_DATA;
+
+	        if (!this.#validatePayloadLength()) {
+	          return
+	        }
 	      } else if (this.#state === parserStates.PAYLOADLENGTH_64) {
 	        if (this.#byteOffset < 8) {
 	          return callback()
@@ -25855,6 +25994,10 @@ function requireReceiver () {
 
 	        this.#info.payloadLength = lower;
 	        this.#state = parserStates.READ_DATA;
+
+	        if (!this.#validatePayloadLength()) {
+	          return
+	        }
 	      } else if (this.#state === parserStates.READ_DATA) {
 	        if (this.#byteOffset < this.#info.payloadLength) {
 	          return callback()
@@ -25867,42 +26010,58 @@ function requireReceiver () {
 	          this.#state = parserStates.INFO;
 	        } else {
 	          if (!this.#info.compressed) {
-	            this.#fragments.push(body);
+	            if (!this.writeFragments(body)) {
+	              return
+	            }
+
+	            if (this.#maxPayloadSize > 0 && this.#fragmentsBytes > this.#maxPayloadSize) {
+	              failWebsocketConnectionWithCode(this.ws, 1009, new MessageSizeExceededError().message);
+	              return
+	            }
 
 	            // If the frame is not fragmented, a message has been received.
 	            // If the frame is fragmented, it will terminate with a fin bit set
 	            // and an opcode of 0 (continuation), therefore we handle that when
 	            // parsing continuation frames, not here.
 	            if (!this.#info.fragmented && this.#info.fin) {
-	              const fullMessage = Buffer.concat(this.#fragments);
-	              websocketMessageReceived(this.ws, this.#info.binaryType, fullMessage);
-	              this.#fragments.length = 0;
+	              websocketMessageReceived(this.ws, this.#info.binaryType, this.consumeFragments());
 	            }
 
 	            this.#state = parserStates.INFO;
 	          } else {
-	            this.#extensions.get('permessage-deflate').decompress(body, this.#info.fin, (error, data) => {
-	              if (error) {
-	                failWebsocketConnection(this.ws, error.message);
-	                return
-	              }
+	            this.#extensions.get('permessage-deflate').decompress(
+	              body,
+	              this.#info.fin,
+	              (error, data) => {
+	                if (error) {
+	                  const code = error instanceof MessageSizeExceededError ? 1009 : 1007;
+	                  failWebsocketConnectionWithCode(this.ws, code, error.message);
+	                  return
+	                }
 
-	              this.#fragments.push(data);
+	                if (!this.writeFragments(data)) {
+	                  return
+	                }
 
-	              if (!this.#info.fin) {
-	                this.#state = parserStates.INFO;
+	                if (this.#maxPayloadSize > 0 && this.#fragmentsBytes > this.#maxPayloadSize) {
+	                  failWebsocketConnectionWithCode(this.ws, 1009, new MessageSizeExceededError().message);
+	                  return
+	                }
+
+	                if (!this.#info.fin) {
+	                  this.#state = parserStates.INFO;
+	                  this.#loop = true;
+	                  this.run(callback);
+	                  return
+	                }
+
+	                websocketMessageReceived(this.ws, this.#info.binaryType, this.consumeFragments());
+
 	                this.#loop = true;
+	                this.#state = parserStates.INFO;
 	                this.run(callback);
-	                return
 	              }
-
-	              websocketMessageReceived(this.ws, this.#info.binaryType, Buffer.concat(this.#fragments));
-
-	              this.#loop = true;
-	              this.#state = parserStates.INFO;
-	              this.#fragments.length = 0;
-	              this.run(callback);
-	            });
+	            );
 
 	            this.#loop = false;
 	            break
@@ -25952,6 +26111,35 @@ function requireReceiver () {
 	    this.#byteOffset -= n;
 
 	    return buffer
+	  }
+
+	  writeFragments (fragment) {
+	    if (
+	      this.#maxFragments > 0 &&
+	      this.#fragments.length === this.#maxFragments
+	    ) {
+	      failWebsocketConnectionWithCode(this.ws, 1008, 'Too many message fragments');
+	      return false
+	    }
+
+	    this.#fragmentsBytes += fragment.length;
+	    this.#fragments.push(fragment);
+	    return true
+	  }
+
+	  consumeFragments () {
+	    const fragments = this.#fragments;
+
+	    if (fragments.length === 1) {
+	      this.#fragmentsBytes = 0;
+	      return fragments.shift()
+	    }
+
+	    const output = Buffer.concat(fragments, this.#fragmentsBytes);
+	    this.#fragments = [];
+	    this.#fragmentsBytes = 0;
+
+	    return output
 	  }
 
 	  parseCloseBody (data) {
@@ -26639,7 +26827,14 @@ function requireWebsocket () {
 	    // once this happens, the connection is open
 	    this[kResponse] = response;
 
-	    const parser = new ByteParser(this, parsedExtensions);
+	    const webSocketOptions = this[kController]?.dispatcher?.webSocketOptions;
+	    const maxFragments = webSocketOptions?.maxFragments;
+	    const maxPayloadSize = webSocketOptions?.maxPayloadSize;
+
+	    const parser = new ByteParser(this, parsedExtensions, {
+	      maxFragments,
+	      maxPayloadSize
+	    });
 	    parser.on('drain', onParserDrain);
 	    parser.on('error', onParserError.bind(this));
 
@@ -47679,6 +47874,18 @@ function requireForm_data () {
 	var populate = requirePopulate();
 
 	/**
+	 * Escape CR, LF, and `"` in a multipart `name`/`filename` parameter, so a field
+	 * name or filename can not break out of its header line to inject headers or
+	 * smuggle additional parts. Matches the WHATWG HTML multipart/form-data encoding.
+	 *
+	 * @param {string} str - the parameter value to escape
+	 * @returns {string} the escaped value
+	 */
+	function escapeHeaderParam(str) {
+	  return String(str).replace(/\r/g, '%0D').replace(/\n/g, '%0A').replace(/"/g, '%22');
+	}
+
+	/**
 	 * Create readable "multipart/form-data" streams.
 	 * Can be used to submit forms
 	 * and file uploads to other web applications.
@@ -47843,7 +48050,7 @@ function requireForm_data () {
 	  var contents = '';
 	  var headers = {
 	    // add custom disposition as third element or keep it two elements if not
-	    'Content-Disposition': ['form-data', 'name="' + field + '"'].concat(contentDisposition || []),
+	    'Content-Disposition': ['form-data', 'name="' + escapeHeaderParam(field) + '"'].concat(contentDisposition || []),
 	    // if no content type. allow it to be empty array
 	    'Content-Type': [].concat(contentType || [])
 	  };
@@ -47897,7 +48104,7 @@ function requireForm_data () {
 	  }
 
 	  if (filename) {
-	    return 'filename="' + filename + '"';
+	    return 'filename="' + escapeHeaderParam(filename) + '"';
 	  }
 	};
 
@@ -64024,15 +64231,23 @@ function requireEventemitter () {
 	     * @type {Object.<string,*>}
 	     * @private
 	     */
-	    this._listeners = {};
+	    this._listeners = Object.create(null);
 	}
+
+	/**
+	 * Event listener as used by {@link util.EventEmitter}.
+	 * @typedef EventEmitterListener
+	 * @type {function}
+	 * @param {...*} args Arguments
+	 * @returns {undefined}
+	 */
 
 	/**
 	 * Registers an event listener.
 	 * @param {string} evt Event name
-	 * @param {function} fn Listener
+	 * @param {EventEmitterListener} fn Listener
 	 * @param {*} [ctx] Listener context
-	 * @returns {util.EventEmitter} `this`
+	 * @returns {this} `this`
 	 */
 	EventEmitter.prototype.on = function on(evt, fn, ctx) {
 	    (this._listeners[evt] || (this._listeners[evt] = [])).push({
@@ -64045,17 +64260,19 @@ function requireEventemitter () {
 	/**
 	 * Removes an event listener or any matching listeners if arguments are omitted.
 	 * @param {string} [evt] Event name. Removes all listeners if omitted.
-	 * @param {function} [fn] Listener to remove. Removes all listeners of `evt` if omitted.
-	 * @returns {util.EventEmitter} `this`
+	 * @param {EventEmitterListener} [fn] Listener to remove. Removes all listeners of `evt` if omitted.
+	 * @returns {this} `this`
 	 */
 	EventEmitter.prototype.off = function off(evt, fn) {
 	    if (evt === undefined)
-	        this._listeners = {};
+	        this._listeners = Object.create(null);
 	    else {
 	        if (fn === undefined)
 	            this._listeners[evt] = [];
 	        else {
 	            var listeners = this._listeners[evt];
+	            if (!listeners)
+	                return this;
 	            for (var i = 0; i < listeners.length;)
 	                if (listeners[i].fn === fn)
 	                    listeners.splice(i, 1);
@@ -64070,7 +64287,7 @@ function requireEventemitter () {
 	 * Emits an event by calling its listeners with the specified arguments.
 	 * @param {string} evt Event name
 	 * @param {...*} args Arguments
-	 * @returns {util.EventEmitter} `this`
+	 * @returns {this} `this`
 	 */
 	EventEmitter.prototype.emit = function emit(evt) {
 	    var listeners = this._listeners[evt];
@@ -64428,56 +64645,6 @@ function requireFloat () {
 	          | buf[pos + 3]) >>> 0;
 	}
 	return float;
-}
-
-function commonjsRequire(path) {
-	throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
-}
-
-var inquire_1;
-var hasRequiredInquire;
-
-function requireInquire () {
-	if (hasRequiredInquire) return inquire_1;
-	hasRequiredInquire = 1;
-	inquire_1 = inquire;
-
-	/**
-	 * Requires a module only if available.
-	 * @memberof util
-	 * @param {string} moduleName Module to require
-	 * @returns {?Object} Required module if available and not empty, otherwise `null`
-	 * @deprecated Legacy optional require helper. Will be removed in a future release.
-	 */
-	function inquire(moduleName) {
-	  try {
-	    if (typeof commonjsRequire !== "function") {
-	      return null;
-	    }
-	    var mod = commonjsRequire(moduleName);
-	    if (mod && (mod.length || Object.keys(mod).length)) return mod;
-	    return null;
-	  } catch (err) {
-	    // ignore
-	    return null;
-	  }
-	}
-
-	/*
-	// maybe worth a shot to prevent renaming issues:
-	// see: https://github.com/webpack/webpack/blob/master/lib/dependencies/CommonJsRequireDependencyParserPlugin.js
-	// triggers on:
-	// - expression require.cache
-	// - expression require (???)
-	// - call require
-	// - call require:commonjs:item
-	// - call require:commonjs:context
-
-	Object.defineProperty(Function.prototype, "__self", { get: function() { return this; } });
-	var r = require.__self;
-	delete Function.prototype.__self;
-	*/
-	return inquire_1;
 }
 
 var utf8 = {};
@@ -66502,9 +66669,6 @@ function requireMinimal$1 () {
 		// float handling accross browsers
 		util.float = requireFloat();
 
-		// requires modules optionally and hides the call from bundlers
-		util.inquire = requireInquire();
-
 		// converts to / from utf8 encoded strings
 		util.utf8 = requireUtf8();
 
@@ -66513,6 +66677,18 @@ function requireMinimal$1 () {
 
 		// utility to work with the low and high bits of a 64 bit value
 		util.LongBits = requireLongbits();
+
+		/**
+		 * Tests if the specified key can affect object prototypes.
+		 * @memberof util
+		 * @param {string} key Key to test
+		 * @returns {boolean} `true` if the key is unsafe
+		 */
+		function isUnsafeProperty(key) {
+		    return key === "__proto__" || key === "prototype" || key === "constructor";
+		}
+
+		util.isUnsafeProperty = isUnsafeProperty;
 
 		/**
 		 * Whether running within node or not.
@@ -66596,7 +66772,7 @@ function requireMinimal$1 () {
 		 */
 		util.isSet = function isSet(obj, prop) {
 		    var value = obj[prop];
-		    if (value != null && obj.hasOwnProperty(prop)) // eslint-disable-line eqeqeq, no-prototype-builtins
+		    if (value != null && Object.hasOwnProperty.call(obj, prop)) // eslint-disable-line eqeqeq
 		        return typeof value !== "object" || (Array.isArray(value) ? value.length : Object.keys(value).length) > 0;
 		    return false;
 		};
@@ -66727,26 +66903,39 @@ function requireMinimal$1 () {
 		 * Merges the properties of the source object into the destination object.
 		 * @memberof util
 		 * @param {Object.<string,*>} dst Destination object
-		 * @param {Object.<string,*>} src Source object
-		 * @param {boolean} [ifNotSet=false] Merges only if the key is not already set
+		 * @param {...(Object.<string,*>|boolean)} src Source objects, optionally followed by an `ifNotSet` flag
 		 * @returns {Object.<string,*>} Destination object
 		 */
-		function merge(dst, src, ifNotSet) { // used by converters
-		    for (var keys = Object.keys(src), i = 0; i < keys.length; ++i)
-		        if (dst[keys[i]] === undefined || !ifNotSet)
-		            if (keys[i] !== "__proto__")
+		function merge(dst) { // used by converters
+		    var ifNotSet = typeof arguments[arguments.length - 1] === "boolean",
+		        limit = ifNotSet ? arguments.length - 1 : arguments.length;
+		    ifNotSet = ifNotSet && arguments[arguments.length - 1];
+		    for (var a = 1; a < limit; ++a) {
+		        var src = arguments[a];
+		        if (!src)
+		            continue;
+		        for (var keys = Object.keys(src), i = 0; i < keys.length; ++i)
+		            if (!isUnsafeProperty(keys[i]) && (dst[keys[i]] === undefined || !ifNotSet))
 		                dst[keys[i]] = src[keys[i]];
+		    }
 		    return dst;
 		}
 
 		util.merge = merge;
 
 		/**
+		 * Schema declaration nesting limit.
+		 * @memberof util
+		 * @type {number}
+		 */
+		util.nestingLimit = 32; // protoc: MaxMessageDeclarationNestingDepth
+
+		/**
 		 * Recursion limit.
 		 * @memberof util
 		 * @type {number}
 		 */
-		util.recursionLimit = 100;
+		util.recursionLimit = 100; // protoc: CodedInputStream::default_recursion_limit_
 
 		/**
 		 * Makes a property safe for assignment as an own property.
@@ -67192,7 +67381,7 @@ function requireWriter () {
 	 * @returns {Writer} `this`
 	 */
 	Writer.prototype.int32 = function write_int32(value) {
-	    return value < 0
+	    return (value |= 0) < 0
 	        ? this._push(writeVarint64, 10, LongBits.fromNumber(value)) // 10 bytes per spec
 	        : this.uint32(value);
 	};
@@ -67207,16 +67396,18 @@ function requireWriter () {
 	};
 
 	function writeVarint64(val, buf, pos) {
-	    while (val.hi) {
-	        buf[pos++] = val.lo & 127 | 128;
-	        val.lo = (val.lo >>> 7 | val.hi << 25) >>> 0;
-	        val.hi >>>= 7;
+	    var lo = val.lo,
+	        hi = val.hi;
+	    while (hi) {
+	        buf[pos++] = lo & 127 | 128;
+	        lo = (lo >>> 7 | hi << 25) >>> 0;
+	        hi >>>= 7;
 	    }
-	    while (val.lo > 127) {
-	        buf[pos++] = val.lo & 127 | 128;
-	        val.lo = val.lo >>> 7;
+	    while (lo > 127) {
+	        buf[pos++] = lo & 127 | 128;
+	        lo = lo >>> 7;
 	    }
-	    buf[pos++] = val.lo;
+	    buf[pos++] = lo;
 	}
 
 	/**
@@ -68222,7 +68413,7 @@ var hasRequiredRoots;
 function requireRoots () {
 	if (hasRequiredRoots) return roots;
 	hasRequiredRoots = 1;
-	roots = {};
+	roots = Object.create(null);
 
 	/**
 	 * Named roots.
@@ -68639,8 +68830,7 @@ function requirePatterns () {
 
 		patterns.numberRe    = /^(?![eE])[0-9]*(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?$/;
 		patterns.typeRefRe   = /^(?:\.?[a-zA-Z_][a-zA-Z_0-9]*)(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*$/;
-		patterns.reservedRe  = /^(?:do|if|in|for|let|new|try|var|case|else|enum|eval|false|null|this|true|void|with|break|catch|class|const|super|throw|while|yield|delete|export|import|public|return|static|switch|typeof|default|extends|finally|package|private|continue|debugger|function|arguments|interface|protected|implements|instanceof)$/;
-		patterns.unsafePropertyRe = /^(?:__proto__|prototype|constructor)$/; 
+		patterns.reservedRe  = /^(?:do|if|in|for|let|new|try|var|case|else|enum|eval|false|null|this|true|void|with|break|catch|class|const|super|throw|while|yield|delete|export|import|public|return|static|switch|typeof|default|extends|finally|package|private|continue|debugger|function|arguments|interface|protected|implements|instanceof)$/; 
 	} (patterns));
 	return patterns;
 }
@@ -69008,6 +69198,8 @@ function requireNamespace () {
 	        throw TypeError("illegal path");
 	    if (path && path.length && path[0] === "")
 	        throw Error("path must be relative");
+	    if (path.length > util.recursionLimit)
+	        throw Error("max depth exceeded");
 
 	    var ptr = this;
 	    while (path.length > 0) {
@@ -69546,8 +69738,6 @@ function requireService () {
 	    util   = requireUtil$1(),
 	    rpc    = requireRpc();
 
-	var reservedRe = util.patterns.reservedRe;
-
 	/**
 	 * Constructs a new service instance.
 	 * @classdesc Reflected service.
@@ -69722,11 +69912,11 @@ function requireService () {
 	    var rpcService = new rpc.Service(rpcImpl, requestDelimited, responseDelimited);
 	    for (var i = 0, method; i < /* initializes */ this.methodsArray.length; ++i) {
 	        var methodName = util.lcFirst((method = this._methodsArray[i]).resolve().name).replace(/[^$\w_]/g, "");
-	        rpcService[methodName] = util.codegen(["r","c"], reservedRe.test(methodName) ? methodName + "_" : methodName)("return this.rpcCall(m,q,s,r,c)")({
-	            m: method,
-	            q: method.resolvedRequestType.ctor,
-	            s: method.resolvedResponseType.ctor
-	        });
+	        rpcService[methodName] = (function(method, requestType, responseType) {
+	            return function rpcMethod(request, callback) {
+	                return rpc.Service.prototype.rpcCall.call(this, method, requestType, responseType, request, callback);
+	            };
+	        })(method, method.resolvedRequestType.ctor, method.resolvedResponseType.ctor);
 	    }
 	    return rpcService;
 	};
@@ -70016,7 +70206,7 @@ function requireDecoder () {
 	    for (i = 0; i < mtype._fieldsArray.length; ++i) {
 	        var rfield = mtype._fieldsArray[i];
 	        if (rfield.required) gen
-	    ("if(!m.hasOwnProperty(%j))", rfield.name)
+	            ("if(!Object.hasOwnProperty.call(m,%j))", rfield.name)
 	        ("throw util.ProtocolError(%j,{instance:m})", missing(rfield));
 	    }
 
@@ -70172,7 +70362,7 @@ function requireVerifier () {
 	            ref   = "m" + util.safeProp(field.name);
 
 	        if (field.optional) gen
-	        ("if(%s!=null&&m.hasOwnProperty(%j)){", ref, field.name); // !== undefined && !== null
+	        ("if(%s!=null&&Object.hasOwnProperty.call(m,%j)){", ref, field.name); // !== undefined && !== null
 
 	        // map fields
 	        if (field.map) { gen
@@ -70265,7 +70455,7 @@ function requireConverter () {
 		            } gen
 		            ("}");
 		        } else gen
-		            ("if(typeof d%s!==\"object\")", prop)
+		            ("if(!util.isObject(d%s))", prop)
 		                ("throw TypeError(%j)", field.fullName + ": object expected")
 		            ("m%s=types[%i].fromObject(d%s,n+1)", prop, fieldIndex, prop);
 		    } else {
@@ -70285,14 +70475,14 @@ function requireConverter () {
 		                ("m%s=d%s|0", prop, prop);
 		                break;
 		            case "uint64":
+		            case "fixed64":
 		                isUnsigned = true;
 		                // eslint-disable-next-line no-fallthrough
 		            case "int64":
 		            case "sint64":
-		            case "fixed64":
 		            case "sfixed64": gen
 		                ("if(util.Long)")
-		                    ("(m%s=util.Long.fromValue(d%s)).unsigned=%j", prop, prop, isUnsigned)
+		                    ("m%s=util.Long.fromValue(d%s,%j)", prop, prop, isUnsigned)
 		                ("else if(typeof d%s===\"string\")", prop)
 		                    ("m%s=parseInt(d%s,10)", prop, prop)
 		                ("else if(typeof d%s===\"number\")", prop)
@@ -70331,12 +70521,15 @@ function requireConverter () {
 		    var fields = mtype.fieldsArray;
 		    var gen = util.codegen(["d", "n"], mtype.name + "$fromObject")
 		    ("if(d instanceof this.ctor)")
-		        ("return d")
+		        ("return d");
+		    if (!fields.length) return gen
+		    ("return new this.ctor");
+		    gen
+		    ("if(!util.isObject(d))")
+		        ("throw TypeError(%j)", mtype.fullName + ": object expected")
 		    ("if(n===undefined)n=0")
 		    ("if(n>util.recursionLimit)")
 		        ("throw Error(\"maximum nesting depth exceeded\")");
-		    if (!fields.length) return gen
-		    ("return new this.ctor");
 		    gen
 		    ("var m=new this.ctor");
 		    for (var i = 0; i < fields.length; ++i) {
@@ -70346,7 +70539,7 @@ function requireConverter () {
 		        // Map fields
 		        if (field.map) { gen
 		    ("if(d%s){", prop)
-		        ("if(typeof d%s!==\"object\")", prop)
+		        ("if(!util.isObject(d%s))", prop)
 		            ("throw TypeError(%j)", field.fullName + ": object expected")
 		        ("m%s={}", prop)
 		        ("for(var ks=Object.keys(d%s),i=0;i<ks.length;++i){", prop);
@@ -70396,7 +70589,7 @@ function requireConverter () {
 		        if (field.resolvedType instanceof Enum) gen
 		            ("d%s=o.enums===String?(types[%i].values[m%s]===undefined?m%s:types[%i].values[m%s]):m%s", prop, fieldIndex, prop, prop, fieldIndex, prop, prop);
 		        else gen
-		            ("d%s=types[%i].toObject(m%s,o)", prop, fieldIndex, prop);
+		            ("d%s=types[%i].toObject(m%s,o,q+1)", prop, fieldIndex, prop);
 		    } else {
 		        var isUnsigned = false;
 		        switch (field.type) {
@@ -70405,11 +70598,11 @@ function requireConverter () {
 		            ("d%s=o.json&&!isFinite(m%s)?String(m%s):m%s", prop, prop, prop, prop);
 		                break;
 		            case "uint64":
+		            case "fixed64":
 		                isUnsigned = true;
 		                // eslint-disable-next-line no-fallthrough
 		            case "int64":
 		            case "sint64":
-		            case "fixed64":
 		            case "sfixed64": gen
 		            ("if(typeof BigInt!==\"undefined\"&&o.longs===BigInt)")
 		                ("d%s=typeof m%s===\"number\"?BigInt(m%s):util.Long.fromBits(m%s.low>>>0,m%s.high>>>0,%j).toBigInt()", prop, prop, prop, prop, prop, isUnsigned)
@@ -70440,9 +70633,12 @@ function requireConverter () {
 		    var fields = mtype.fieldsArray.slice().sort(util.compareFieldsById);
 		    if (!fields.length)
 		        return util.codegen()("return {}");
-		    var gen = util.codegen(["m", "o"], mtype.name + "$toObject")
+		    var gen = util.codegen(["m", "o", "q"], mtype.name + "$toObject")
 		    ("if(!o)")
 		        ("o={}")
+		    ("if(q===undefined)q=0")
+		    ("if(q>util.recursionLimit)")
+		        ("throw Error(\"max depth exceeded\")")
 		    ("var d={}");
 
 		    var repeatedFields = [],
@@ -70521,7 +70717,7 @@ function requireConverter () {
 		            genValuePartial_toObject(gen, field, /* sorted */ index, prop + "[j]")
 		        ("}");
 		        } else { gen
-		    ("if(m%s!=null&&m.hasOwnProperty(%j)){", prop, field.name); // !== undefined && !== null
+		    ("if(m%s!=null&&Object.hasOwnProperty.call(m,%j)){", prop, field.name); // !== undefined && !== null
 		        genValuePartial_toObject(gen, field, /* sorted */ index, prop);
 		        if (field.partOf) gen
 		        ("if(o.oneofs)")
@@ -70554,7 +70750,8 @@ function requireWrappers () {
 		 */
 		var wrappers = exports$1;
 
-		var Message = requireMessage();
+		var Message = requireMessage(),
+		    util    = requireMinimal$1();
 
 		/**
 		 * From object converter part of an {@link IWrapper}.
@@ -70601,10 +70798,9 @@ function requireWrappers () {
 		                if (type_url.indexOf("/") === -1) {
 		                    type_url = "/" + type_url;
 		                }
-		                var nextDepth = depth === undefined ? 1 : depth + 1;
 		                return this.create({
 		                    type_url: type_url,
-		                    value: type.encode(type.fromObject(object, nextDepth)).finish()
+		                    value: type.encode(type.fromObject(object, depth === undefined ? 1 : depth + 1)).finish()
 		                });
 		            }
 		        }
@@ -70612,7 +70808,11 @@ function requireWrappers () {
 		        return this.fromObject(object, depth);
 		    },
 
-		    toObject: function(message, options) {
+		    toObject: function(message, options, depth) {
+		        if (depth === undefined)
+		            depth = 0;
+		        if (depth > util.recursionLimit)
+		            throw Error("max depth exceeded");
 
 		        // Default prefix
 		        var googleApi = "type.googleapis.com/";
@@ -70628,12 +70828,12 @@ function requireWrappers () {
 		            var type = this.lookup(name);
 		            /* istanbul ignore else */
 		            if (type)
-		                message = type.decode(message.value);
+		                message = type.decode(message.value, undefined, undefined, depth + 1);
 		        }
 
 		        // wrap value if unmapped
 		        if (!(message instanceof this.ctor) && message instanceof Message) {
-		            var object = message.$type.toObject(message, options);
+		            var object = message.$type.toObject(message, options, depth + 1);
 		            var messageName = message.$type.fullName[0] === "." ?
 		                message.$type.fullName.slice(1) : message.$type.fullName;
 		            // Default to type.googleapis.com prefix if no prefix is used
@@ -70645,7 +70845,7 @@ function requireWrappers () {
 		            return object;
 		        }
 
-		        return this.toObject(message, options);
+		        return this.toObject(message, options, depth);
 		    }
 		}; 
 	} (wrappers));
@@ -70896,7 +71096,10 @@ function requireType () {
 	 * @returns {Type} Created message type
 	 */
 	Type.fromJSON = function fromJSON(name, json, depth) {
-	    depth = util.checkDepth(depth);
+	    if (depth === undefined)
+	        depth = 0;
+	    if (depth > util.nestingLimit)
+	        throw Error("max depth exceeded");
 	    var type = new Type(name, json.options);
 	    type.extensions = json.extensions;
 	    type.reserved = json.reserved;
@@ -71029,7 +71232,7 @@ function requireType () {
 	            throw Error("duplicate id " + object.id + " in " + this);
 	        if (this.isReservedId(object.id))
 	            throw Error("id " + object.id + " is reserved in " + this);
-	        if (this.isReservedName(object.name))
+	        if (this.isReservedName(object.name) || object.name.charAt(0) === "$")
 	            throw Error("name '" + object.name + "' is reserved in " + this);
 	        if (object.name === "__proto__")
 	            return this;
@@ -71042,6 +71245,8 @@ function requireType () {
 	        return clearCache(this);
 	    }
 	    if (object instanceof OneOf) {
+	        if (object.name.charAt(0) === "$")
+	            throw Error("name '" + object.name + "' is reserved in " + this);
 	        if (object.name === "__proto__")
 	            return this;
 	        if (!this.oneofs)
@@ -71174,8 +71379,8 @@ function requireType () {
 	 * @param {Writer} [writer] Writer to encode to
 	 * @returns {Writer} writer
 	 */
-	Type.prototype.encode = function encode_setup(message, writer) {
-	    return this.setup().encode(message, writer); // overrides this method
+	Type.prototype.encode = function encode_setup(message, writer) { // eslint-disable-line no-unused-vars
+	    return this.setup().encode.apply(this, arguments); // overrides this method
 	};
 
 	/**
@@ -71260,8 +71465,8 @@ function requireType () {
 	 * @param {IConversionOptions} [options] Conversion options
 	 * @returns {Object.<string,*>} Plain object
 	 */
-	Type.prototype.toObject = function toObject(message, options) {
-	    return this.setup().toObject(message, options);
+	Type.prototype.toObject = function toObject(message, options) { // eslint-disable-line no-unused-vars
+	    return this.setup().toObject.apply(this, arguments);
 	};
 
 	/**
@@ -71432,8 +71637,12 @@ function requireRoot$1 () {
 	    }
 
 	    // Processes a single file
-	    function process(filename, source) {
+	    function process(filename, source, depth) {
+	        if (depth === undefined)
+	            depth = 0;
 	        try {
+	            if (depth > util.recursionLimit)
+	                throw Error("max depth exceeded");
 	            if (util.isString(source) && source.charAt(0) === "{")
 	                source = JSON.parse(source);
 	            if (!util.isString(source))
@@ -71446,11 +71655,11 @@ function requireRoot$1 () {
 	                if (parsed.imports)
 	                    for (; i < parsed.imports.length; ++i)
 	                        if (resolved = getBundledFileName(parsed.imports[i]) || self.resolvePath(filename, parsed.imports[i]))
-	                            fetch(resolved);
+	                            fetch(resolved, false, depth + 1);
 	                if (parsed.weakImports)
 	                    for (i = 0; i < parsed.weakImports.length; ++i)
 	                        if (resolved = getBundledFileName(parsed.weakImports[i]) || self.resolvePath(filename, parsed.weakImports[i]))
-	                            fetch(resolved, true);
+	                            fetch(resolved, true, depth + 1);
 	            }
 	        } catch (err) {
 	            finish(err);
@@ -71461,7 +71670,9 @@ function requireRoot$1 () {
 	    }
 
 	    // Fetches a single file
-	    function fetch(filename, weak) {
+	    function fetch(filename, weak, depth) {
+	        if (depth === undefined)
+	            depth = 0;
 	        filename = getBundledFileName(filename) || filename;
 
 	        // Skip if already loaded / attempted
@@ -71473,12 +71684,12 @@ function requireRoot$1 () {
 	        // Shortcut bundled definitions
 	        if (filename in common) {
 	            if (sync) {
-	                process(filename, common[filename]);
+	                process(filename, common[filename], depth);
 	            } else {
 	                ++queued;
 	                setTimeout(function() {
 	                    --queued;
-	                    process(filename, common[filename]);
+	                    process(filename, common[filename], depth);
 	                });
 	            }
 	            return;
@@ -71494,7 +71705,7 @@ function requireRoot$1 () {
 	                    finish(err);
 	                return;
 	            }
-	            process(filename, source);
+	            process(filename, source, depth);
 	        } else {
 	            ++queued;
 	            self.fetch(filename, function(err, source) {
@@ -71511,7 +71722,7 @@ function requireRoot$1 () {
 	                        finish(null, self);
 	                    return;
 	                }
-	                process(filename, source);
+	                process(filename, source, depth);
 	            });
 	        }
 	    }
@@ -71723,8 +71934,7 @@ function requireUtil$1 () {
 	util.path    = requirePath();
 	util.patterns = requirePatterns();
 
-	var reservedRe = util.patterns.reservedRe,
-	    unsafePropertyRe = util.patterns.unsafePropertyRe;
+	var reservedRe = util.patterns.reservedRe;
 
 	/**
 	 * Node's fs module if available.
@@ -71899,7 +72109,7 @@ function requireUtil$1 () {
 	util.setProperty = function setProperty(dst, path, value, ifNotSet) {
 	    function setProp(dst, path, value) {
 	        var part = path.shift();
-	        if (unsafePropertyRe.test(part))
+	        if (util.isUnsafeProperty(part))
 	            return dst;
 	        if (path.length > 0) {
 	            dst[part] = setProp(dst[part] || {}, path, value);
@@ -71920,6 +72130,8 @@ function requireUtil$1 () {
 	        throw TypeError("path must be specified");
 
 	    path = path.split(".");
+	    if (path.length > util.recursionLimit)
+	        throw Error("max depth exceeded");
 	    return setProp(dst, path, value);
 	};
 
@@ -72477,7 +72689,7 @@ function requireField () {
 
 	    // convert to internal data type if necesssary
 	    if (this.long) {
-	        this.typeDefault = util.Long.fromNumber(this.typeDefault, this.type.charAt(0) === "u");
+	        this.typeDefault = util.Long.fromNumber(this.typeDefault, this.type === "uint64" || this.type === "fixed64");
 
 	        /* istanbul ignore else */
 	        if (Object.freeze)
@@ -73053,7 +73265,7 @@ function requireObject () {
 	        throw new Error("Unknown edition for " + this.fullName);
 	    }
 
-	    var protoFeatures = Object.assign(this.options ? Object.assign({},  this.options.features) : {},
+	    var protoFeatures = util.merge({}, this.options && this.options.features,
 	        this._inferLegacyProtoFeatures(edition));
 
 	    if (this._edition) {
@@ -73068,7 +73280,7 @@ function requireObject () {
 	        } else {
 	            throw new Error("Unknown edition: " + edition);
 	        }
-	        this._features = Object.assign(defaults, protoFeatures || {});
+	        this._features = util.merge(defaults, protoFeatures);
 	        this._featuresResolved = true;
 	        return;
 	    }
@@ -73077,11 +73289,11 @@ function requireObject () {
 	    // special-case it
 	    /* istanbul ignore else */
 	    if (this.partOf instanceof OneOf) {
-	        var lexicalParentFeaturesCopy = Object.assign({}, this.partOf._features);
-	        this._features = Object.assign(lexicalParentFeaturesCopy, protoFeatures || {});
+	        var lexicalParentFeaturesCopy = util.merge({}, this.partOf._features);
+	        this._features = util.merge(lexicalParentFeaturesCopy, protoFeatures);
 	    } else if (this.declaringField) ; else if (this.parent) {
-	        var parentFeaturesCopy = Object.assign({}, this.parent._features);
-	        this._features = Object.assign(parentFeaturesCopy, protoFeatures || {});
+	        var parentFeaturesCopy = util.merge({}, this.parent._features);
+	        this._features = util.merge(parentFeaturesCopy, protoFeatures);
 	    } else {
 	        throw new Error("Unable to find a parent for " + this.fullName);
 	    }
@@ -73314,8 +73526,8 @@ function require_enum () {
 	    ReflectionObject.prototype._resolveFeatures.call(this, edition);
 
 	    Object.keys(this.values).forEach(key => {
-	        var parentFeaturesCopy = Object.assign({}, this._features);
-	        this._valuesFeatures[key] = Object.assign(parentFeaturesCopy, this.valuesOptions && this.valuesOptions[key] && this.valuesOptions[key].features);
+	        var parentFeaturesCopy = util.merge({}, this._features);
+	        this._valuesFeatures[key] = util.merge(parentFeaturesCopy, this.valuesOptions && this.valuesOptions[key] && this.valuesOptions[key].features || {});
 	    });
 
 	    return this;
@@ -73478,8 +73690,8 @@ function requireEncoder () {
 	 */
 	function genTypePartial(gen, field, fieldIndex, ref) {
 	    return field.delimited
-	        ? gen("types[%i].encode(%s,w.uint32(%i)).uint32(%i)", fieldIndex, ref, (field.id << 3 | 3) >>> 0, (field.id << 3 | 4) >>> 0)
-	        : gen("types[%i].encode(%s,w.uint32(%i).fork()).ldelim()", fieldIndex, ref, (field.id << 3 | 2) >>> 0);
+	        ? gen("types[%i].encode(%s,w.uint32(%i),q+1).uint32(%i)", fieldIndex, ref, (field.id << 3 | 3) >>> 0, (field.id << 3 | 4) >>> 0)
+	        : gen("types[%i].encode(%s,w.uint32(%i).fork(),q+1).ldelim()", fieldIndex, ref, (field.id << 3 | 2) >>> 0);
 	}
 
 	/**
@@ -73489,9 +73701,12 @@ function requireEncoder () {
 	 */
 	function encoder(mtype) {
 	    /* eslint-disable no-unexpected-multiline, block-scoped-var, no-redeclare */
-	    var gen = util.codegen(["m", "w"], mtype.name + "$encode")
+	    var gen = util.codegen(["m", "w", "q"], mtype.name + "$encode")
 	    ("if(!w)")
-	        ("w=Writer.create()");
+	        ("w=Writer.create()")
+	    ("if(q===undefined)q=0")
+	    ("if(q>util.recursionLimit)")
+	        ("throw Error(\"max depth exceeded\")");
 
 	    var i, ref;
 
@@ -73512,7 +73727,7 @@ function requireEncoder () {
 	        ("for(var ks=Object.keys(%s),i=0;i<ks.length;++i){", ref)
 	            ("w.uint32(%i).fork().uint32(%i).%s(ks[i])", (field.id << 3 | 2) >>> 0, 8 | types.mapKey[field.keyType], field.keyType);
 	            if (wireType === undefined) gen
-	            ("types[%i].encode(%s[ks[i]],w.uint32(18).fork()).ldelim().ldelim()", index, ref); // can't be groups
+	            ("types[%i].encode(%s[ks[i]],w.uint32(18).fork(),q+1).ldelim().ldelim()", index, ref); // can't be groups
 	            else gen
 	            (".uint32(%i).%s(%s[ks[i]]).ldelim()", 16 | wireType, type, ref);
 	            gen
@@ -74407,7 +74622,9 @@ function requireParse () {
 
 
 	    function parseCommon(parent, token, depth) {
-	        depth = util.checkDepth(depth);
+	        if (depth === undefined)
+	            depth = 0;
+	        // depth is checked by dispatched functions
 	        switch (token) {
 
 	            case "option":
@@ -74457,7 +74674,10 @@ function requireParse () {
 	    }
 
 	    function parseType(parent, token, depth) {
-	        depth = util.checkDepth(depth);
+	        if (depth === undefined)
+	            depth = 0;
+	        if (depth > util.nestingLimit)
+	            throw Error("max depth exceeded");
 
 	        /* istanbul ignore if */
 	        if (!nameRe.test(token = next()))
@@ -74583,7 +74803,10 @@ function requireParse () {
 	    }
 
 	    function parseGroup(parent, rule, depth) {
-	        depth = util.checkDepth(depth);
+	        if (depth === undefined)
+	            depth = 0;
+	        if (depth > util.nestingLimit)
+	            throw Error("max depth exceeded");
 	        if (edition >= 2023) {
 	            throw illegal("group");
 	        }
@@ -74802,7 +75025,10 @@ function requireParse () {
 	    }
 
 	    function parseOptionValue(parent, name, depth) {
-	        depth = util.checkDepth(depth);
+	        if (depth === undefined)
+	            depth = 0;
+	        if (depth > util.recursionLimit)
+	            throw Error("max depth exceeded");
 	        // { a: "foo" b { c: "bar" } }
 	        if (skip("{", true)) {
 	            var objectResult = {};
@@ -74891,7 +75117,10 @@ function requireParse () {
 	    }
 
 	    function parseService(parent, token, depth) {
-	        depth = util.checkDepth(depth);
+	        if (depth === undefined)
+	            depth = 0;
+	        if (depth > util.recursionLimit)
+	            throw Error("max depth exceeded");
 
 	        /* istanbul ignore if */
 	        if (!nameRe.test(token = next()))
@@ -77134,9 +77363,14 @@ function requireDescriptor () {
 		 * @param {IDescriptorProto|Reader|Uint8Array} descriptor Descriptor
 		 * @param {string} [edition="proto2"] The syntax or edition to use
 		 * @param {boolean} [nested=false] Whether or not this is a nested object
+		 * @param {number} [depth] Current nesting depth, defaults to `0`
 		 * @returns {Type} Type instance
 		 */
-		Type.fromDescriptor = function fromDescriptor(descriptor, edition, nested) {
+		Type.fromDescriptor = function fromDescriptor(descriptor, edition, nested, depth) {
+		    if (depth === undefined)
+		        depth = 0;
+		    if (depth > $protobuf.util.nestingLimit)
+		        throw Error("max depth exceeded");
 		    // Decode the descriptor message if specified as a buffer:
 		    if (typeof descriptor.length === "number")
 		        descriptor = exports$1.DescriptorProto.decode(descriptor);
@@ -77163,7 +77397,7 @@ function requireDescriptor () {
 		            type.add(Field.fromDescriptor(descriptor.extension[i], edition, true));
 		    /* Nested types */ if (descriptor.nestedType)
 		        for (i = 0; i < descriptor.nestedType.length; ++i) {
-		            type.add(Type.fromDescriptor(descriptor.nestedType[i], edition, true));
+		            type.add(Type.fromDescriptor(descriptor.nestedType[i], edition, true, depth + 1));
 		            if (descriptor.nestedType[i].options && descriptor.nestedType[i].options.mapEntry)
 		                type.setOption("map_entry", true);
 		        }
