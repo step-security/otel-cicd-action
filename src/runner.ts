@@ -77,7 +77,7 @@ async function fetchGithub(token: string, runId: number) {
     jobAnnotations = await getJobsAnnotations(context, octokit, jobsId);
   } catch (error) {
     if (isOctokitError(error)) {
-      core.info(`Failed to get job annotations: ${error.message}}`);
+      core.info(`Failed to get job annotations: ${error.message}`);
     } else {
       throw error;
     }
@@ -90,7 +90,7 @@ async function fetchGithub(token: string, runId: number) {
     prLabels = await getPRsLabels(context, octokit, prNumbers);
   } catch (error) {
     if (isOctokitError(error)) {
-      core.info(`Failed to get PRs labels: ${error.message}}`);
+      core.info(`Failed to get PRs labels: ${error.message}`);
     } else {
       throw error;
     }
