@@ -4,7 +4,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -41,7 +41,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -73,10 +73,9 @@
     'github.job.step.name': 'Set up job',
     'github.job.step.number': 1,
     'github.job.step.started_at': '2026-01-29T17:16:44Z',
-    'github.job.step.completed_at': '2026-01-29T17:16:45Z',
-    error: false
+    'github.job.step.completed_at': '2026-01-29T17:16:45Z'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -86,7 +85,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -118,10 +117,9 @@
     'github.job.step.name': 'Run amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50',
     'github.job.step.number': 2,
     'github.job.step.started_at': '2026-01-29T17:16:45Z',
-    'github.job.step.completed_at': '2026-01-29T17:16:50Z',
-    error: false
+    'github.job.step.completed_at': '2026-01-29T17:16:50Z'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -131,7 +129,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -163,10 +161,9 @@
     'github.job.step.name': 'Complete job',
     'github.job.step.number': 3,
     'github.job.step.started_at': '2026-01-29T17:16:50Z',
-    'github.job.step.completed_at': '2026-01-29T17:16:50Z',
-    error: false
+    'github.job.step.completed_at': '2026-01-29T17:16:50Z'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -176,7 +173,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -224,17 +221,16 @@
     'github.job.runner_group_name': 'default',
     'github.job.runner_name': 'depot-ptc3146psq',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'depot-ubuntu-24.04-arm-small',
+    'github.job.labels': [ 'depot-ubuntu-24.04-arm-small' ],
     'github.job.created_at': '2026-01-29T17:16:16Z',
     'github.job.started_at': '2026-01-29T17:16:17Z',
     'github.job.completed_at': '2026-01-29T17:16:51Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/biomejs/biome/check-runs/61901817921',
     'github.job.workflow_name': 'Lint Pull Request Titles',
-    'github.job.head_branch': 'dyc3/codegen-refactor',
-    error: false
+    'github.job.head_branch': 'dyc3/codegen-refactor'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -244,7 +240,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'biomejs/biome/94297729/21487811823/1',
       'service.namespace': 'biomejs/biome',
       'service.version': '5450c187bd4f7de93acb26454237fef6c3b185f3',
@@ -307,7 +303,6 @@
     'github.head_sha': '5450c187bd4f7de93acb26454237fef6c3b185f3',
     'github.path': '.github/workflows/pull_request_title_lint.yaml',
     'github.display_title': 'refactor(codegen): generate lint/assist/syntax groups by proc macro',
-    error: false,
     'github.head_ref': 'dyc3/codegen-refactor',
     'github.base_ref': 'main',
     'github.base_sha': '9b1eea88b9d04d6589dbf4d71b12bc4d46438597',
@@ -333,7 +328,7 @@
     'github.pull_requests.0.base.repo.url': 'https://api.github.com/repos/biomejs/biome',
     'github.pull_requests.0.base.repo.name': 'biome'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }

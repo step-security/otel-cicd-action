@@ -77,7 +77,7 @@ async function fetchGithub(token: string, runId: number) {
     jobAnnotations = await getJobsAnnotations(context, octokit, jobsId);
   } catch (error) {
     if (isOctokitError(error)) {
-      core.info(`Failed to get job annotations: ${error.message}}`);
+      core.info(`Failed to get job annotations: ${error.message}`);
     } else {
       throw error;
     }
@@ -90,7 +90,7 @@ async function fetchGithub(token: string, runId: number) {
     prLabels = await getPRsLabels(context, octokit, prNumbers);
   } catch (error) {
     if (isOctokitError(error)) {
-      core.info(`Failed to get PRs labels: ${error.message}}`);
+      core.info(`Failed to get PRs labels: ${error.message}`);
     } else {
       throw error;
     }
@@ -109,6 +109,11 @@ async function run() {
     const runId = Number.parseInt(core.getInput("runId") || `${context.runId}`, 10);
     const extraAttributes = stringToRecord(core.getInput("extraAttributes"));
     const ghToken = core.getInput("githubToken") || process.env["GITHUB_TOKEN"] || "";
+    const otlpInsecureSkipVerify = core.getBooleanInput("otlpInsecureSkipVerify");
+
+    if (otlpInsecureSkipVerify) {
+      core.warning("TLS certificate verification is disabled for the OTLP exporter.");
+    }
 
     core.info("Use Github API to fetch workflow data");
     const { workflowRun, jobs, jobAnnotations, prLabels } = await fetchGithub(ghToken, runId);
@@ -126,7 +131,7 @@ async function run() {
       [ATTR_SERVICE_VERSION]: workflowRun.head_sha,
       ...extraAttributes,
     };
-    const provider = createTracerProvider(otlpEndpoint, otlpHeaders, attributes);
+    const provider = createTracerProvider(otlpEndpoint, otlpHeaders, attributes, otlpInsecureSkipVerify);
 
     core.info(`Trace workflow run for ${runId} and export to ${otlpEndpoint}`);
     const traceId = traceWorkflowRun(workflowRun, jobs, jobAnnotations, prLabels);

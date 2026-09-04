@@ -4,7 +4,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -29,7 +29,7 @@
   id: 'b6cb5d1a3093cd7c',
   kind: 0,
   timestamp: 1753871431000000,
-  duration: 9000000,
+  duration: 5000000,
   attributes: {},
   status: { code: 0 },
   events: [],
@@ -41,7 +41,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -89,17 +89,16 @@
     'github.job.runner_group_name': 'GitHub Actions',
     'github.job.runner_name': 'GitHub Actions 1000149203',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'ubuntu-latest',
+    'github.job.labels': [ 'ubuntu-latest' ],
     'github.job.created_at': '2025-07-30T10:30:31Z',
     'github.job.started_at': '2025-07-30T10:30:40Z',
     'github.job.completed_at': '2025-07-30T10:30:56Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/step-security/skip-duplicate-actions/check-runs/47022208955',
     'github.job.workflow_name': 'Build & Test',
-    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
-    error: false
+    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -109,7 +108,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -157,17 +156,16 @@
     'github.job.runner_group_name': 'GitHub Actions',
     'github.job.runner_name': 'GitHub Actions 1000149204',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'ubuntu-latest',
+    'github.job.labels': [ 'ubuntu-latest' ],
     'github.job.created_at': '2025-07-30T10:30:31Z',
     'github.job.started_at': '2025-07-30T10:30:39Z',
     'github.job.completed_at': '2025-07-30T10:30:56Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/step-security/skip-duplicate-actions/check-runs/47022208967',
     'github.job.workflow_name': 'Build & Test',
-    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
-    error: false
+    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -177,7 +175,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -226,17 +224,16 @@
     'github.job.runner_group_name': 'GitHub Actions',
     'github.job.runner_name': 'GitHub Actions 1000149205',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'ubuntu-latest',
+    'github.job.labels': [ 'ubuntu-latest' ],
     'github.job.created_at': '2025-07-30T10:30:31Z',
     'github.job.started_at': '2025-07-30T10:30:36Z',
     'github.job.completed_at': '2025-07-30T10:31:07Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/step-security/skip-duplicate-actions/check-runs/47022208973',
     'github.job.workflow_name': 'Build & Test',
-    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
-    error: false
+    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -246,7 +243,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -294,17 +291,16 @@
     'github.job.runner_group_name': 'GitHub Actions',
     'github.job.runner_name': 'GitHub Actions 1000149206',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'ubuntu-latest',
+    'github.job.labels': [ 'ubuntu-latest' ],
     'github.job.created_at': '2025-07-30T10:30:31Z',
     'github.job.started_at': '2025-07-30T10:30:39Z',
     'github.job.completed_at': '2025-07-30T10:31:27Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/step-security/skip-duplicate-actions/check-runs/47022208986',
     'github.job.workflow_name': 'Build & Test',
-    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
-    error: false
+    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -314,7 +310,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -362,17 +358,16 @@
     'github.job.runner_group_name': 'GitHub Actions',
     'github.job.runner_name': 'GitHub Actions 1000149209',
     'github.job.conclusion': 'success',
-    'github.job.labels': 'ubuntu-latest',
+    'github.job.labels': [ 'ubuntu-latest' ],
     'github.job.created_at': '2025-07-30T10:30:57Z',
     'github.job.started_at': '2025-07-30T10:31:02Z',
     'github.job.completed_at': '2025-07-30T10:31:42Z',
     'github.conclusion': 'success',
     'github.job.check_run_url': 'https://api.github.com/repos/step-security/skip-duplicate-actions/check-runs/47022240005',
     'github.job.workflow_name': 'Build & Test',
-    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
-    error: false
+    'github.job.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }
@@ -382,7 +377,7 @@
       'service.name': 'otel-cicd-action',
       'telemetry.sdk.language': 'nodejs',
       'telemetry.sdk.name': 'opentelemetry',
-      'telemetry.sdk.version': '2.6.0',
+      'telemetry.sdk.version': '2.10.0',
       'service.instance.id': 'step-security/skip-duplicate-actions/76151565/16620109074/1',
       'service.namespace': 'step-security/skip-duplicate-actions',
       'service.version': '6f96b263f472444725e0d2122722ce7140cf3bdb',
@@ -459,10 +454,9 @@
     'github.head_branch': 'dependabot/github_actions/github/codeql-action-3.29.5',
     'github.head_sha': '6f96b263f472444725e0d2122722ce7140cf3bdb',
     'github.path': '.github/workflows/test.yml',
-    'github.display_title': 'chore(deps): Bump github/codeql-action from 3.28.8 to 3.29.5',
-    error: false
+    'github.display_title': 'chore(deps): Bump github/codeql-action from 3.28.8 to 3.29.5'
   },
-  status: { code: 1 },
+  status: { code: 0 },
   events: [],
   links: []
 }

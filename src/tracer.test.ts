@@ -1,5 +1,8 @@
+import type { Agent } from "node:https";
+import { credentials } from "@grpc/grpc-js";
+import { jest } from "@jest/globals";
 import type { Attributes } from "@opentelemetry/api";
-import type { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
+import type { BasicTracerProvider, ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import { ATTR_SERVICE_INSTANCE_ID, ATTR_SERVICE_NAMESPACE } from "@opentelemetry/semantic-conventions/incubating";
 import { createTracerProvider, stringToRecord } from "./tracer";
@@ -15,17 +18,21 @@ describe("createTracerProvider", () => {
   };
 
   afterEach(() => {
+    jest.restoreAllMocks();
     return provider.shutdown();
   });
 
   it("has resource attributes", () => {
     provider = createTracerProvider("localhost", "test=foo", attributes);
-    /*expect(provider.resource.attributes[ATTR_SERVICE_NAME]).toEqual(attributes[ATTR_SERVICE_NAME]);
-    expect(provider.resource.attributes[ATTR_SERVICE_VERSION]).toEqual(attributes[ATTR_SERVICE_VERSION]);
-    expect(provider.resource.attributes[ATTR_SERVICE_INSTANCE_ID]).toEqual(attributes[ATTR_SERVICE_INSTANCE_ID]);
-    expect(provider.resource.attributes[ATTR_SERVICE_NAMESPACE]).toEqual(attributes[ATTR_SERVICE_NAMESPACE]);
-    expect(provider.resource.attributes["extra.attribute"]).toEqual(attributes["extra.attribute"]);*/
-    //FIXME
+
+    const span = provider.getTracer("test").startSpan("test");
+    const resource = (span as unknown as ReadableSpan).resource;
+
+    expect(resource.attributes[ATTR_SERVICE_NAME]).toEqual(attributes[ATTR_SERVICE_NAME]);
+    expect(resource.attributes[ATTR_SERVICE_VERSION]).toEqual(attributes[ATTR_SERVICE_VERSION]);
+    expect(resource.attributes[ATTR_SERVICE_INSTANCE_ID]).toEqual(attributes[ATTR_SERVICE_INSTANCE_ID]);
+    expect(resource.attributes[ATTR_SERVICE_NAMESPACE]).toEqual(attributes[ATTR_SERVICE_NAMESPACE]);
+    expect(resource.attributes["extra.attribute"]).toEqual(attributes["extra.attribute"]);
   });
 
   it("supports https", () => {
@@ -34,6 +41,39 @@ describe("createTracerProvider", () => {
 
   it("supports http", () => {
     provider = createTracerProvider("http://localhost", "test=foo", attributes);
+  });
+
+  it("can disable TLS certificate verification for HTTP", async () => {
+    provider = createTracerProvider("https://localhost", "test=foo", attributes, true);
+
+    // The httpAgentOptions are only applied when the exporter lazily creates its agent,
+    // so pull the agent factory out of the exporter and invoke it.
+    const exporterInternals = (
+      provider as unknown as {
+        _activeSpanProcessor: {
+          _spanProcessors: {
+            _exporter: {
+              _delegate: {
+                _transport: { _transport: { _parameters: { agentFactory: (protocol: string) => Promise<Agent> } } };
+              };
+            };
+          }[];
+        };
+      }
+    )._activeSpanProcessor._spanProcessors[0]._exporter._delegate;
+    const agent = await exporterInternals._transport._transport._parameters.agentFactory("https:");
+
+    expect(agent.options.rejectUnauthorized).toBe(false);
+  });
+
+  it("can disable TLS certificate verification for gRPC", () => {
+    const createSsl = jest.spyOn(credentials, "createSsl");
+
+    provider = createTracerProvider("grpc://localhost", "test=foo", attributes, true);
+
+    expect(createSsl).toHaveBeenCalledWith(undefined, undefined, undefined, {
+      rejectUnauthorized: false,
+    });
   });
 });
 
