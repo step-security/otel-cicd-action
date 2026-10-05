@@ -56,7 +56,7 @@ THE SOFTWARE.
 ---
 
 Name: undici
-Version: 6.28.0
+Version: 6.29.0
 License: MIT
 Private: false
 Description: An HTTP/1.1 client, written from scratch for Node.js
@@ -933,7 +933,7 @@ License Text:
 ---
 
 Name: axios
-Version: 1.19.0
+Version: 1.20.0
 License: MIT
 Private: false
 Description: Promise based HTTP client for the browser and node.js
@@ -2093,7 +2093,7 @@ License Text:
 ---
 
 Name: @grpc/grpc-js
-Version: 1.14.4
+Version: 1.14.5
 License: Apache-2.0
 Private: false
 Description: gRPC Library for Node - pure JS implementation
