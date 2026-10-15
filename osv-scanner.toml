@@ -1,7 +1,7 @@
 [[IgnoredVulns]]
-id = "GHSA-3v7f-55p6-f55p"
-reason = "Affects picomatch (dev dependency only, not shipped in dist)"
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = "braces is a dev dependency and is not used at runtime"
 
 [[IgnoredVulns]]
-id = "GHSA-c2c7-rcm5-vvqj"
-reason = "Affects picomatch (dev dependency only, not shipped in dist)"
+id = "GHSA-hp3w-g68c-fv3c"
+reason = "sprintf-js is a dev dependency and is not used at runtime"
