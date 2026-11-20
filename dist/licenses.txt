@@ -1843,7 +1843,7 @@ Author: Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
 ---
 
 Name: follow-redirects
-Version: 1.16.1
+Version: 1.16.3
 License: MIT
 Private: false
 Description: HTTP and HTTPS modules that follow redirects.
